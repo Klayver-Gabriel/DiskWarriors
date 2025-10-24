@@ -2,52 +2,52 @@ import pgzrun
 import math
 import random
 from player_class import Player
+from enemy_class import Enemy
 from pgzero.keyboard import keys
 from pgzero import music
-from pgzero.rect import Rect
+from config import *
+from pygame import Rect
+from audio_manager import AudioManager
 
-TITLE_SIZE = 16
-WIDTH = 30 * TITLE_SIZE
-HEIGHT = 30 * TITLE_SIZE
 TITLE = "DiskWarriors"
 PLAYER_WALK_FRAMES = ['player0','player1','player2']
 PLAYER_IDLE_FRAMES = ['player0']
+ENEMY_WALK_FRAMES = ['player0','player1']
+ENEMY_IDLE_FRAMES = ['player1']
 
-# Constantes para o mapa
-TILE_WALL = 1
-TILE_GROUND = 0
-MAP_WIDTH = 30
-MAP_HEIGHT = 30
-
+def play_sfx(sfx_name):
+    if game_manager.music_active:
+        try:
+            sound = getattr(sounds, sfx_name, None)
+            if sound:
+                sound.play()
+        except AttributeError:
+            print(f" '{sfx_name}' não encontrado.")    
 def generate_map():
-    map_data = []
+    map_data = []    
     for y in range(MAP_HEIGHT):
         row = []
         for x in range(MAP_WIDTH):
-            # Cria bordas como paredes
             if x == 0 or y == 0 or x == MAP_WIDTH-1 or y == MAP_HEIGHT-1:
-                row.append(TILE_WALL)
-            # Área central maior e mais aberta
-            elif 3 <= x <= 26 and 3 <= y <= 26:
-                # Menos paredes internas para melhor navegação
-                if random.random() < 0.15:  # Reduzido para menos obstáculos
-                    row.append(TILE_WALL)
+                row.append(1)
+            elif 5 <= x <= 24 and 5 <= y <= 24:
+                rand = random.random()
+                if rand < 0.6:
+                    row.append(0) 
+                elif rand < 0.8:
+                    row.append(2) 
                 else:
-                    row.append(TILE_GROUND)
+                    row.append(3) 
             else:
-                row.append(TILE_GROUND)
+                rand = random.random()
+                if rand < 0.5:
+                    row.append(0)  
+                elif rand < 0.75:
+                    row.append(2) 
+                else:
+                    row.append(3)
         map_data.append(row)
-    
-    # Garantir que a área inicial do player esteja livre
-    start_x, start_y = 15, 15
-    for y in range(start_y-2, start_y+3):
-        for x in range(start_x-2, start_x+3):
-            if 0 <= x < MAP_WIDTH and 0 <= y < MAP_HEIGHT:
-                map_data[y][x] = TILE_GROUND
-    
     return map_data
-
-# Gera o mapa
 game_map = generate_map()
 
 class GameStateManager:
@@ -55,12 +55,12 @@ class GameStateManager:
         self.state = "MENU"
         self.selected_state = 1
         self.max_states = 3
+        self.game_over_selected = 1
         self.music_active = True
 
     def set_state(self, new_state):
         self.state = new_state
-        print(f"O jogo está no modo {new_state}")
-
+    
     def draw_menu(self):
         screen.clear()
 
@@ -87,7 +87,7 @@ class GameStateManager:
         )
         color_exit = "Yellow" if self.selected_state == 3 else "white"
         screen.draw.text(
-            "Saída",
+            "Sair",
             center=(WIDTH/2,HEIGHT/3),
             fontsize=30,
             color=color_exit
@@ -108,45 +108,83 @@ class GameStateManager:
                 self.music_active = not self.music_active
             elif self.selected_state == 1:
                 self.set_state("JOGANDO")
-                background_music()
+                if game_manager.music_active:
+                    audio_manager.play_music()
 
 game_manager = GameStateManager()
+audio_manager = AudioManager.get_instance()
+audio_manager.initialize(sounds)
+audio_manager.music_active = game_manager.music_active
 
 player = Player('player0',
                 WIDTH/4, HEIGHT/2,
                 PLAYER_WALK_FRAMES,
                 PLAYER_IDLE_FRAMES,
-                TITLE_SIZE,game_map)
+                TILE_SIZE,game_map,game_manager=game_manager)
+enemies = []
+def create_enemies():
+    enemy_positions = []
+    for _ in range(5):  # Create 5 enemies
+        for attempt in range(20):  # Try 20 times to find valid position
+            x = random.randint(3, MAP_WIDTH-4)
+            y = random.randint(3, MAP_HEIGHT-4)
+            if (game_map[y][x] == TILE_GROUND and 
+                abs(x - player.grid_x) > 5 and 
+                abs(y - player.grid_y) > 5 and
+                (x, y) not in enemy_positions):
+                
+                enemy = Enemy('player0', x * TILE_SIZE, y * TILE_SIZE, 
+                            ENEMY_WALK_FRAMES, ENEMY_IDLE_FRAMES, 
+                            TILE_SIZE, game_map, patrol_distance=4)
+                enemies.append(enemy)
+                enemy_positions.append((x, y))
+                break
+
+create_enemies()
+
 
 def draw():
     if game_manager.state == "MENU":
         game_manager.draw_menu()
     elif game_manager.state == "JOGANDO":
         screen.clear()
-        screen.fill((255,255,255))
         
-        # Desenhar o mapa
+        TILE_ASSETS = {
+            0: 'grass',
+            1: 'grass',
+            2: 'grass2', 
+            3: 'grass3'
+        }        
+
         for y in range(MAP_HEIGHT):
             for x in range(MAP_WIDTH):
-                tile_type = game_map[y][x]
-                if tile_type == TILE_WALL:
-                    color = (100, 100, 150)  
-                else:
-                    color = (200, 200, 200)  
-                
-                screen.draw.filled_rect(
-                    Rect(x * TITLE_SIZE, y * TITLE_SIZE, TITLE_SIZE, TITLE_SIZE),
-                    color
-                )
+                tile_value = game_map[y][x]
+                asset_name = TILE_ASSETS[tile_value]
+                screen.blit(asset_name, (x * TILE_SIZE, y * TILE_SIZE))
         
-        player.draw()        
-
+        for enemy in enemies:
+            enemy.draw()
+        if enemy.collides_with(player):
+            raise
+        player.draw()
+    elif game_manager.state == "GAME_OVER":
+        screen.clear()
+        screen.draw.text(
+            "Game Over", 
+            center=(WIDTH/2, HEIGHT / 2), 
+            fontsize=70, 
+            color="red"
+        )
 def update(dt):
     if game_manager.state != "JOGANDO":
         return
     player.movement_logic(dt,WIDTH,HEIGHT)  
        
-   
+    for enemy in enemies:
+        enemy.update(dt, player)
+        if enemy.collides_with(player):
+            game_manager.set_state("GAME_OVER")
+            music.stop()
     pass
 
 def on_key_down(key):
@@ -154,17 +192,6 @@ def on_key_down(key):
     if game_manager.state == "MENU":
         game_manager.handle_menu_input(key)
 
-def background_music():
-    music.play("soundtrack")
-def stop_background_music():
-    music.stop()
 
-def play_sfx(self, sfx_name):
-        if self.music_active:
-            try:
-                sound = getattr(sounds, sfx_name, None)
-                if sound:
-                    sound.play()
-            except AttributeError:
-                 print(f"ERRO: Som '{sfx_name}' não encontrado.")
+
 pgzrun.go()
