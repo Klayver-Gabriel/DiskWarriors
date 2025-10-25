@@ -138,8 +138,8 @@ player = Player(WIDTH/4, HEIGHT/2,
 enemies = []
 def create_enemies():
     enemy_positions = []
-    for _ in range(5):  # Create 5 enemies
-        for attempt in range(20):  # Try 20 times to find valid position
+    for _ in range(5): 
+        for attempt in range(20): 
             x = random.randint(3, MAP_WIDTH-4)
             y = random.randint(3, MAP_HEIGHT-4)
             if (game_map[y][x] == TILE_GROUND and 
