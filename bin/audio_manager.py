@@ -21,7 +21,7 @@ class AudioManager:
             try:
                 sound = getattr(self.sounds, sfx_name, None)
                 if sound:
-                    sound.set_volume(0.5)
+                    sound.set_volume(0.8)
                     sound.play()
             except AttributeError:
                 print(f"'{sfx_name}' não encontrado.")

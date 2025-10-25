@@ -10,11 +10,6 @@ from pygame import Rect
 from audio_manager import AudioManager
 
 TITLE = "DiskWarriors"
-PLAYER_WALK_FRAMES = ['player0','player1','player2']
-PLAYER_IDLE_FRAMES = ['player0']
-ENEMY_WALK_FRAMES = ['player0','player1']
-ENEMY_IDLE_FRAMES = ['player1']
-
 def play_sfx(sfx_name):
     if game_manager.music_active:
         try:
@@ -57,7 +52,7 @@ class GameStateManager:
         self.max_states = 3
         self.game_over_selected = 1
         self.music_active = True
-
+        self.button_rects = []  
     def set_state(self, new_state):
         self.state = new_state
     
@@ -70,57 +65,76 @@ class GameStateManager:
             fontsize=70, 
             color="white"
         )
+        
+        self.button_rects = []
+        
+        button1_rect = Rect(WIDTH/2 - 150, HEIGHT/5 - 20, 300, 40)
+        self.button_rects.append(button1_rect)
         color_play = "Yellow" if self.selected_state == 1 else "white"
         screen.draw.text(
             "Começar o Jogo",
-            center=(WIDTH/2,HEIGHT/5),
-            fontsize= 30,
+            center=(WIDTH/2, HEIGHT/5),
+            fontsize=30,
             color=color_play
         )
+        
+        button2_rect = Rect(WIDTH/2 - 200, HEIGHT/4 - 20, 400, 40)
+        self.button_rects.append(button2_rect)
         color_music = "Yellow" if self.selected_state == 2 else "white"
         music_state = "Música e sons ligados" if self.music_active == True else "Música e sons desligados"
         screen.draw.text(
             music_state,
-            center=(WIDTH/2,HEIGHT/4),
+            center=(WIDTH/2, HEIGHT/4),
             fontsize=30,
             color=color_music
         )
+        button3_rect = Rect(WIDTH/2 - 80, HEIGHT/3 - 20, 160, 40)
+        self.button_rects.append(button3_rect)
         color_exit = "Yellow" if self.selected_state == 3 else "white"
         screen.draw.text(
             "Sair",
-            center=(WIDTH/2,HEIGHT/3),
+            center=(WIDTH/2, HEIGHT/3),
             fontsize=30,
             color=color_exit
         )
+    def handle_menu_selection(self):
+        if self.selected_state == 3:
+            raise SystemExit
+        elif self.selected_state == 2:
+            self.music_active = not self.music_active
+        elif self.selected_state == 1:
+            self.set_state("JOGANDO")
+            if game_manager.music_active:
+                audio_manager.play_music()
     
     def handle_menu_input(self, key):
-        if key == keys.DOWN:
+        if key == keys.DOWN or key == keys.S:
             self.selected_state = (self.selected_state % self.max_states) + 1
-        elif key == keys.UP:
+            play_sfx("menu_move")
+        elif key == keys.UP or key == keys.W:
             if self.selected_state == 1:
                 self.selected_state = 3
+                play_sfx("menu_move")
             else:
-                self.selected_state -= 1
-        elif key == keys.E:
-            if self.selected_state == 3:
-                raise SystemExit
-            elif self.selected_state == 2:
-                self.music_active = not self.music_active
-            elif self.selected_state == 1:
-                self.set_state("JOGANDO")
-                if game_manager.music_active:
-                    audio_manager.play_music()
+                self.selected_state = self.selected_state - 1
+                play_sfx("menu_move")
+        elif key == keys.E or key == keys.RETURN:
+            self.handle_menu_selection()
+
+    def handle_menu_click(self, pos):
+        x, y = pos
+        for i, rect in enumerate(self.button_rects):
+            if rect.collidepoint(x, y):
+                self.selected_state = i + 1
+                self.handle_menu_selection()
 
 game_manager = GameStateManager()
 audio_manager = AudioManager.get_instance()
 audio_manager.initialize(sounds)
 audio_manager.music_active = game_manager.music_active
 
-player = Player('player0',
-                WIDTH/4, HEIGHT/2,
-                PLAYER_WALK_FRAMES,
-                PLAYER_IDLE_FRAMES,
-                TILE_SIZE,game_map,game_manager=game_manager)
+player = Player(WIDTH/4, HEIGHT/2,
+                TILE_SIZE,game_map,game_manager)
 enemies = []
 def create_enemies():
     enemy_positions = []
@@ -133,8 +147,7 @@ def create_enemies():
                 abs(y - player.grid_y) > 5 and
                 (x, y) not in enemy_positions):
                 
-                enemy = Enemy('player0', x * TILE_SIZE, y * TILE_SIZE, 
-                            ENEMY_WALK_FRAMES, ENEMY_IDLE_FRAMES, 
+                enemy = Enemy('slimeidle', x * TILE_SIZE, y * TILE_SIZE, 
                             TILE_SIZE, game_map, patrol_distance=4)
                 enemies.append(enemy)
                 enemy_positions.append((x, y))
@@ -178,20 +191,27 @@ def draw():
 def update(dt):
     if game_manager.state != "JOGANDO":
         return
-    player.movement_logic(dt,WIDTH,HEIGHT)  
+    player.movement_logic(dt)  
        
     for enemy in enemies:
-        enemy.update(dt, player)
+        enemy.update(dt)
         if enemy.collides_with(player):
             game_manager.set_state("GAME_OVER")
             music.stop()
+            if game_manager.music_active:
+                music.play("gameover")
     pass
 
 def on_key_down(key):
 
     if game_manager.state == "MENU":
         game_manager.handle_menu_input(key)
-
+def on_mouse_down(pos):
+    if game_manager.state == "MENU":
+        if game_manager.music_active:
+            play_sfx("menu_move")
+        game_manager.handle_menu_click(pos)
+        
 
 
 pgzrun.go()

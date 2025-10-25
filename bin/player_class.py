@@ -4,16 +4,24 @@ from pgzero.animation import animate
 import pgzrun
 from config import *
 from audio_manager import AudioManager
-
+PLAYER_IDLE_FRAMES = ['playeridle2', 'playeridle1', 'playeridle3']
+PLAYER_RIGHT_FRAMES = ['playerright1', 'playerright2', 'playerright3']
+PLAYER_LEFT_FRAMES = ['playerleft1', 'playerleft2', 'playerleft3']
+PLAYER_UP_FRAMES = ['playerup1', 'playerup2', 'playerup3']
+PLAYER_DOWN_FRAMES = ['playerdown1', 'playerdown2']
 class Player(Actor):
-    def __init__(self, start_image, x, y, walk_frames, idle_frames, tile_size, game_map,game_manager=None):
-        super().__init__(start_image, (x, y))
-        self.walk_frames = walk_frames
-        self.idle_frames = idle_frames
-        self.speed = 2
-        self.current_frames = idle_frames
+    def __init__(self, x, y, tile_size, game_map,game_manager=None):
+        super().__init__("playeridle1", (x, y))
+        self.idle_frames = PLAYER_IDLE_FRAMES
+        self.right_frames = PLAYER_RIGHT_FRAMES
+        self.left_frames = PLAYER_LEFT_FRAMES
+        self.down_frames = PLAYER_DOWN_FRAMES
+        self.up_frames = PLAYER_UP_FRAMES
+        self.current_frames = self.idle_frames
+        self.current_direction = "down" 
         self.tile_size = tile_size
         self.game_map = game_map
+        self.speed = 2
 
         self.grid_x = int(x // self.tile_size)
         self.grid_y = int(y // self.tile_size)
@@ -35,7 +43,7 @@ class Player(Actor):
     
         tile_value = self.game_map[grid_y][grid_x]
         return tile_value not in SOLID_TILES  
-    def movement_logic(self, dt, WIDTH, HEIGHT):
+    def movement_logic(self, dt):
         if self.is_moving:
             self.animate(dt)
             return
@@ -43,12 +51,16 @@ class Player(Actor):
         dx, dy = 0, 0
         if keyboard.LEFT or keyboard.A:
             dx = -1
+            self.current_direction = "left"
         elif keyboard.RIGHT or keyboard.D:
             dx = 1
+            self.current_direction = "right"
         if keyboard.UP or keyboard.W:
             dy = -1
+            self.current_direction = "up"
         if keyboard.DOWN or keyboard.S:
             dy = 1
+            self.current_direction = "down"
         
         if dx != 0 or dy != 0:
             new_grid_x = self.grid_x + dx
@@ -79,7 +91,14 @@ class Player(Actor):
         
     def animate(self, dt):
         if self.is_moving:
-            frames = self.walk_frames
+            if self.current_direction == "right":
+                frames = self.right_frames
+            elif self.current_direction == "left":
+                frames = self.left_frames
+            elif self.current_direction == "up":
+                frames = self.up_frames
+            elif self.current_direction == "down":
+                frames = self.down_frames
         else:
             frames = self.idle_frames
         
@@ -95,7 +114,7 @@ class Player(Actor):
             self.image = self.current_frames[self.frame_index]
 
   
-    def start_move(self, dx, dy, collision=False):
+    def start_move(self, dx, dy):
         if self.is_moving:
             return
 
@@ -103,6 +122,16 @@ class Player(Actor):
         new_grid_y = self.grid_y + dy
 
         if self.can_move_to(new_grid_x, new_grid_y):
+
+            if dx > 0:
+                self.current_direction = "right"
+            elif dx < 0:
+                self.current_direction = "left"
+            elif dy > 0:
+                self.current_direction = "down"
+            elif dy < 0:
+                self.current_direction = "up"
+
             self.grid_x = new_grid_x
             self.grid_y = new_grid_y
             self.target_x = self.grid_x * self.tile_size + self.tile_size // 2
